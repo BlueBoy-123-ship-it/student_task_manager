@@ -1,0 +1,33 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "ergobug",
+          "appId": "1:445562797903:android:139ec8fbfae38951dc0f3a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "ergobug",
+          "configurations": {
+            "android": "1:445562797903:android:139ec8fbfae38951dc0f3a",
+            "ios": "1:445562797903:ios:3ec87fa557f8074fdc0f3a",
+            "macos": "1:445562797903:ios:3ec87fa557f8074fdc0f3a",
+            "web": "1:445562797903:web:2f5f4340a50c1dc5dc0f3a",
+            "windows": "1:445562797903:web:b052a0a02c34c23cdc0f3a"
+          }
+        }
+      }
+    }
+  },
+
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

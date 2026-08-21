@@ -1,0 +1,107 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isLecturer() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'lecturer';
+    }
+
+    function isStudent() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    function assignmentBelongsToLecturer(assignmentId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.lecturerId == request.auth.uid;
+    }
+
+    function assignmentIsActive(assignmentId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.status == 'active';
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isLecturer();
+      allow create, update, delete: if isOwner(userId);
+    }
+
+    match /courses/{courseId} {
+      allow read: if signedIn();
+      allow create: if isLecturer()
+        && request.resource.data.lecturerId == request.auth.uid;
+      allow update, delete: if isLecturer()
+        && (resource.data.lecturerId == request.auth.uid
+            || resource.data.userId == request.auth.uid);
+    }
+
+    match /course_enrollments/{enrollmentId} {
+      allow read: if signedIn()
+        && (resource.data.studentId == request.auth.uid
+            || resource.data.lecturerId == request.auth.uid);
+
+      allow create: if isStudent()
+        && request.resource.data.studentId == request.auth.uid;
+
+      allow delete: if isStudent()
+        && resource.data.studentId == request.auth.uid;
+
+      allow update: if isStudent()
+        && resource.data.studentId == request.auth.uid
+        && request.resource.data.studentId == request.auth.uid;
+    }
+
+    match /tasks/{taskId} {
+      allow read, update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if signedIn()
+        && (resource.data.status == 'active'
+            || resource.data.lecturerId == request.auth.uid);
+
+      allow create: if isLecturer()
+        && request.resource.data.lecturerId == request.auth.uid;
+
+      allow update, delete: if isLecturer()
+        && (resource.data.lecturerId == request.auth.uid
+            || resource.data.userId == request.auth.uid);
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if signedIn()
+        && (resource.data.studentId == request.auth.uid
+            || assignmentBelongsToLecturer(resource.data.assignmentId));
+
+      allow create: if isStudent()
+        && request.resource.data.studentId == request.auth.uid
+        && assignmentIsActive(request.resource.data.assignmentId);
+
+      allow update: if assignmentBelongsToLecturer(resource.data.assignmentId)
+        || (isStudent()
+            && resource.data.studentId == request.auth.uid
+            && request.resource.data.studentId == request.auth.uid
+            && request.resource.data.grade == resource.data.grade
+            && request.resource.data.feedback == resource.data.feedback
+            && request.resource.data.gradedAt == resource.data.gradedAt
+            && request.resource.data.gradedBy == resource.data.gradedBy
+            && request.resource.data.returnedAt == resource.data.returnedAt);
+
+      allow delete: if signedIn()
+        && (resource.data.studentId == request.auth.uid
+            || assignmentBelongsToLecturer(resource.data.assignmentId));
+    }
+  }
+}

@@ -1,0 +1,1352 @@
+import 'lecturer_submissions_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
+import '../services/firestore_service.dart';
+import 'create_assignment_screen.dart';
+import 'login_screen.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
+
+class LecturerHomeScreen extends StatefulWidget {
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeChanged;
+
+  const LecturerHomeScreen({
+    super.key,
+    required this.themeMode,
+    required this.onThemeChanged,
+  });
+
+  @override
+  State<LecturerHomeScreen> createState() =>
+      _LecturerHomeScreenState();
+}
+
+class _LecturerHomeScreenState
+    extends State<LecturerHomeScreen> {
+  final FirestoreService _firestoreService =
+      FirestoreService();
+
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
+
+  // =========================================================
+  // GREETING
+  // =========================================================
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour < 12) {
+      return 'Good Morning ☀️';
+    }
+
+    if (hour < 17) {
+      return 'Good Afternoon 🌤';
+    }
+
+    return 'Good Evening 🌙';
+  }
+
+  // =========================================================
+  // LECTURER NAME
+  // =========================================================
+
+  String _lecturerName() {
+    final user = _auth.currentUser;
+
+    final displayName =
+        user?.displayName?.trim();
+
+    if (displayName != null &&
+        displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    return 'Lecturer';
+  }
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  Future<void> _logout() async {
+    await _auth.signOut();
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(
+          themeMode: widget.themeMode,
+          onThemeChanged:
+              widget.onThemeChanged,
+        ),
+      ),
+      (route) => false,
+    );
+  }
+
+  // =========================================================
+  // OPEN SETTINGS
+  // =========================================================
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(
+          themeMode: widget.themeMode,
+          onThemeChanged:
+              widget.onThemeChanged,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // OPEN PROFILE
+  // =========================================================
+
+  void _openProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(
+          themeMode: widget.themeMode,
+          onThemeChanged:
+              widget.onThemeChanged,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // CREATE ASSIGNMENT
+  // =========================================================
+
+  Future<void> _createAssignment() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const CreateAssignmentScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (created == true) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Assignment created successfully.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+    }
+  }
+
+  // =========================================================
+  // ASSIGNMENT STATUS
+  // =========================================================
+
+  String _assignmentStatus(
+    Map<String, dynamic> data,
+  ) {
+    final rawDueDate = data['dueDate'];
+
+    if (rawDueDate is! Timestamp) {
+      return 'No due date';
+    }
+
+    final dueDate =
+        rawDueDate.toDate();
+
+    final now = DateTime.now();
+
+    if (dueDate.isBefore(now)) {
+      return 'Overdue';
+    }
+
+    final difference =
+        dueDate.difference(now);
+
+    if (difference.inDays == 0) {
+      return 'Due today';
+    }
+
+    if (difference.inDays == 1) {
+      return 'Due tomorrow';
+    }
+
+    return 'Due in ${difference.inDays} days';
+  }
+
+  // =========================================================
+  // STATUS COLOR
+  // =========================================================
+
+  Color _statusColor(
+    BuildContext context,
+    String status,
+  ) {
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
+    if (status == 'Overdue') {
+      return colorScheme.error;
+    }
+
+    if (status == 'Due today') {
+      return Colors.orange;
+    }
+
+    if (status == 'Due tomorrow') {
+      return Colors.deepOrange;
+    }
+
+    return colorScheme.primary;
+  }
+
+  // =========================================================
+  // FORMAT DATE
+  // =========================================================
+
+  String _formatDate(
+    dynamic rawDate,
+  ) {
+    if (rawDate is! Timestamp) {
+      return 'No due date';
+    }
+
+    final date =
+        rawDate.toDate();
+
+    final day =
+        date.day.toString().padLeft(2, '0');
+
+    final month =
+        date.month.toString().padLeft(2, '0');
+
+    final year =
+        date.year.toString();
+
+    return '$day/$month/$year';
+  }
+
+  // =========================================================
+  // DASHBOARD CARD
+  // =========================================================
+
+  Widget _dashboardCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Card(
+        elevation: 0,
+        child: Padding(
+          padding:
+              const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor:
+                    color.withValues(
+                  alpha: 0.12,
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 21,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 25,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      Theme.of(context)
+                          .colorScheme
+                          .onSurface,
+                ),
+              ),
+
+              const SizedBox(height: 3),
+
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  color:
+                      Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ASSIGNMENT CARD
+  // =========================================================
+
+  Widget _assignmentCard(
+    BuildContext context,
+    QueryDocumentSnapshot doc,
+  ) {
+    final data =
+        doc.data()
+            as Map<String, dynamic>;
+
+    final title =
+        data['title']?.toString() ??
+            'Untitled Assignment';
+
+    final courseName =
+        data['courseName']?.toString() ??
+            'Unknown Course';
+
+    final description =
+        data['description']?.toString() ??
+            '';
+
+    final totalMarks =
+        data['totalMarks'] ?? 100;
+
+    final status =
+        _assignmentStatus(data);
+
+    final statusColor =
+        _statusColor(
+      context,
+      status,
+    );
+
+    return Card(
+      margin:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            // =================================================
+            // COURSE + STATUS
+            // =================================================
+
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.school_outlined,
+                        size: 18,
+                        color: Theme.of(
+                          context,
+                        )
+                            .colorScheme
+                            .primary,
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      Flexible(
+                        child: Text(
+                          courseName,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.w600,
+                            color: Theme.of(
+                              context,
+                            )
+                                .colorScheme
+                                .primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        statusColor
+                            .withValues(
+                      alpha: 0.10,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      20,
+                    ),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color:
+                          statusColor,
+                      fontSize: 11,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // =================================================
+            // TITLE
+            // =================================================
+
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 6),
+
+              Text(
+                description,
+                maxLines: 2,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(
+                    context,
+                  )
+                      .colorScheme
+                      .onSurfaceVariant,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 14),
+
+            // =================================================
+            // DETAILS
+            // =================================================
+
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: Theme.of(
+                    context,
+                  )
+                      .colorScheme
+                      .onSurfaceVariant,
+                ),
+
+                const SizedBox(width: 5),
+
+                Text(
+                  _formatDate(
+                    data['dueDate'],
+                  ),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .onSurfaceVariant,
+                  ),
+                ),
+
+                const SizedBox(width: 18),
+
+                Icon(
+                  Icons.grade_outlined,
+                  size: 17,
+                  color: Theme.of(
+                    context,
+                  )
+                      .colorScheme
+                      .onSurfaceVariant,
+                ),
+
+                const SizedBox(width: 5),
+
+                Text(
+                  '$totalMarks marks',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .onSurfaceVariant,
+                  ),
+                ),
+
+                const Spacer(),
+
+                IconButton(
+                  tooltip:
+                      'Assignment options',
+                  icon: const Icon(
+                    Icons.more_vert,
+                  ),
+                  onPressed: () {
+                    _showAssignmentOptions(
+                      doc,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ASSIGNMENT OPTIONS
+  // =========================================================
+
+  void _showAssignmentOptions(
+    QueryDocumentSnapshot doc,
+  ) {
+    final data =
+        doc.data()
+            as Map<String, dynamic>;
+
+    final title =
+        data['title']?.toString() ??
+            'Assignment';
+
+    final courseName =
+        data['courseName']?.toString() ??
+            'Unknown Course';
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              // =================================================
+              // VIEW ASSIGNMENT
+              // =================================================
+
+              ListTile(
+                leading:
+                    const Icon(
+                  Icons.visibility_outlined,
+                ),
+                title:
+                    const Text(
+                  'View Assignment',
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Opening $title...',
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // =================================================
+              // VIEW SUBMISSIONS
+              // =================================================
+
+              ListTile(
+                leading:
+                    const Icon(
+                  Icons.people_outline,
+                ),
+                title:
+                    const Text(
+                  'View Submissions',
+                ),
+                subtitle: const Text(
+                  'View, grade and return student submissions',
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          LecturerSubmissionsScreen(
+                        assignmentId:
+                            doc.id,
+                        assignmentTitle:
+                            title,
+                        courseName:
+                            courseName,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // =================================================
+              // EDIT ASSIGNMENT
+              // =================================================
+
+              ListTile(
+                leading:
+                    const Icon(
+                  Icons.edit_outlined,
+                ),
+                title:
+                    const Text(
+                  'Edit Assignment',
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Edit screen will be connected next.',
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // =================================================
+              // DELETE ASSIGNMENT
+              // =================================================
+
+              ListTile(
+                leading:
+                    const Icon(
+                  Icons.delete_outline,
+                ),
+                title:
+                    const Text(
+                  'Delete Assignment',
+                ),
+                textColor:
+                    Theme.of(context)
+                        .colorScheme
+                        .error,
+                iconColor:
+                    Theme.of(context)
+                        .colorScheme
+                        .error,
+                onTap: () {
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
+                  _confirmDeleteAssignment(
+                    doc.id,
+                    title,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // DELETE ASSIGNMENT
+  // =========================================================
+
+  Future<void> _confirmDeleteAssignment(
+    String assignmentId,
+    String title,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Assignment?',
+          ),
+          content: Text(
+            'Are you sure you want to delete "$title"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child:
+                  const Text('Cancel'),
+            ),
+
+            ElevatedButton(
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    Colors.red,
+                foregroundColor:
+                    Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child:
+                  const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _firestoreService
+          .deleteAssignment(
+        assignmentId,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Assignment deleted.',
+          ),
+          backgroundColor:
+              Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to delete assignment: $e',
+          ),
+          backgroundColor:
+              Colors.red,
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final colorScheme =
+        theme.colorScheme;
+
+    return Scaffold(
+      backgroundColor:
+          theme.scaffoldBackgroundColor,
+
+      // =======================================================
+      // APP BAR
+      // =======================================================
+
+      appBar: AppBar(
+        centerTitle: true,
+
+        title: const Text(
+          'Ergobug',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+
+        foregroundColor:
+            Colors.white,
+
+        actions: [
+          IconButton(
+            tooltip: 'Profile',
+            icon: const Icon(
+              Icons.person_outline,
+            ),
+            onPressed:
+                _openProfile,
+          ),
+
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(
+              Icons.settings_outlined,
+            ),
+            onPressed:
+                _openSettings,
+          ),
+
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(
+              Icons.logout,
+            ),
+            onPressed:
+                _logout,
+          ),
+        ],
+
+        flexibleSpace:
+            Container(
+          decoration:
+              const BoxDecoration(
+            gradient:
+                LinearGradient(
+              colors: [
+                Color(0xFF2563EB),
+                Color(0xFF7C3AED),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      // =======================================================
+      // CREATE ASSIGNMENT
+      // =======================================================
+
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed:
+            _createAssignment,
+        backgroundColor:
+            const Color(0xFF2563EB),
+        foregroundColor:
+            Colors.white,
+        icon: const Icon(
+          Icons.add,
+        ),
+        label: const Text(
+          'Create Assignment',
+        ),
+      ),
+
+      // =======================================================
+      // BODY
+      // =======================================================
+
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot>(
+          stream:
+              _firestoreService
+                  .getLecturerAssignments(),
+
+          builder:
+              (context, snapshot) {
+            // =================================================
+            // ERROR
+            // =================================================
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(
+                    24,
+                  ),
+                  child: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons
+                            .error_outline,
+                        size: 50,
+                        color:
+                            colorScheme
+                                .error,
+                      ),
+
+                      const SizedBox(
+                        height: 12,
+                      ),
+
+                      Text(
+                        'Unable to load assignments.',
+                        textAlign:
+                            TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight:
+                              FontWeight.bold,
+                          color:
+                              colorScheme
+                                  .onSurface,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 8,
+                      ),
+
+                      Text(
+                        '${snapshot.error}',
+                        textAlign:
+                            TextAlign.center,
+                        style: TextStyle(
+                          color:
+                              colorScheme
+                                  .onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // =================================================
+            // LOADING
+            // =================================================
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Center(
+                child:
+                    CircularProgressIndicator(),
+              );
+            }
+
+            final assignments =
+                snapshot.data?.docs ??
+                    [];
+
+            // =================================================
+            // DASHBOARD NUMBERS
+            // =================================================
+
+            final totalAssignments =
+                assignments.length;
+
+            final activeAssignments =
+                assignments.where(
+              (doc) {
+                final data =
+                    doc.data()
+                        as Map<String, dynamic>;
+
+                return data['status'] ==
+                    'active';
+              },
+            ).length;
+
+            // =================================================
+            // MAIN CONTENT
+            // =================================================
+
+            return ListView(
+              padding:
+                  const EdgeInsets.fromLTRB(
+                16,
+                18,
+                16,
+                110,
+              ),
+
+              children: [
+                // =============================================
+                // GREETING
+                // =============================================
+
+                Text(
+                  '${_greeting()}, ${_lecturerName()}!',
+                  style: TextStyle(
+                    fontSize: 27,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        colorScheme
+                            .onSurface,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 5,
+                ),
+
+                Text(
+                  'Manage your assignments and student submissions.',
+                  style: TextStyle(
+                    color:
+                        colorScheme
+                            .onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 20,
+                ),
+
+                // =============================================
+                // DASHBOARD
+                // =============================================
+
+                Row(
+                  children: [
+                    _dashboardCard(
+                      context: context,
+                      title:
+                          'Assignments',
+                      value:
+                          totalAssignments
+                              .toString(),
+                      icon:
+                          Icons
+                              .assignment_outlined,
+                      color:
+                          Colors.blue,
+                    ),
+
+                    const SizedBox(
+                      width: 10,
+                    ),
+
+                    _dashboardCard(
+                      context: context,
+                      title:
+                          'Active',
+                      value:
+                          activeAssignments
+                              .toString(),
+                      icon:
+                          Icons
+                              .check_circle_outline,
+                      color:
+                          Colors.green,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
+                // =============================================
+                // QUICK ACTION
+                // =============================================
+
+                Card(
+                  elevation: 0,
+                  child: InkWell(
+                    borderRadius:
+                        BorderRadius.circular(
+                      12,
+                    ),
+                    onTap:
+                        _createAssignment,
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(
+                        18,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration:
+                                BoxDecoration(
+                              gradient:
+                                  const LinearGradient(
+                                colors: [
+                                  Color(
+                                    0xFF2563EB,
+                                  ),
+                                  Color(
+                                    0xFF7C3AED,
+                                  ),
+                                ],
+                              ),
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                14,
+                              ),
+                            ),
+                            child:
+                                const Icon(
+                              Icons
+                                  .assignment_add,
+                              color:
+                                  Colors.white,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 14,
+                          ),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment
+                                      .start,
+                              children: [
+                                const Text(
+                                  'Create an Assignment',
+                                  style:
+                                      TextStyle(
+                                    fontSize:
+                                        16,
+                                    fontWeight:
+                                        FontWeight
+                                            .bold,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  height: 4,
+                                ),
+
+                                Text(
+                                  'Give your students a new task to complete.',
+                                  style:
+                                      TextStyle(
+                                    fontSize:
+                                        12,
+                                    color:
+                                        colorScheme
+                                            .onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          Icon(
+                            Icons
+                                .arrow_forward_ios,
+                            size: 17,
+                            color:
+                                colorScheme
+                                    .onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 24,
+                ),
+
+                // =============================================
+                // ASSIGNMENTS TITLE
+                // =============================================
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'My Assignments',
+                        style:
+                            TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.bold,
+                          color:
+                              colorScheme
+                                  .onSurface,
+                        ),
+                      ),
+                    ),
+
+                    if (assignments
+                        .isNotEmpty)
+                      Text(
+                        '$totalAssignments total',
+                        style:
+                            TextStyle(
+                          fontSize: 12,
+                          color:
+                              colorScheme
+                                  .onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                // =============================================
+                // EMPTY STATE
+                // =============================================
+
+                if (assignments.isEmpty)
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding:
+                          const EdgeInsets
+                              .all(
+                        30,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons
+                                .assignment_outlined,
+                            size: 65,
+                            color:
+                                colorScheme
+                                    .primary
+                                    .withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 15,
+                          ),
+
+                          const Text(
+                            'No assignments yet',
+                            style:
+                                TextStyle(
+                              fontSize: 19,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 7,
+                          ),
+
+                          Text(
+                            'Create your first assignment for your students.',
+                            textAlign:
+                                TextAlign.center,
+                            style:
+                                TextStyle(
+                              color:
+                                  colorScheme
+                                      .onSurfaceVariant,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 18,
+                          ),
+
+                          ElevatedButton
+                              .icon(
+                            onPressed:
+                                _createAssignment,
+                            icon:
+                                const Icon(
+                              Icons.add,
+                            ),
+                            label:
+                                const Text(
+                              'Create Assignment',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // =============================================
+                // ASSIGNMENT LIST
+                // =============================================
+
+                ...assignments.map(
+                  (doc) => _assignmentCard(
+                    context,
+                    doc,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
