@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -23,6 +25,10 @@ class _CourseStudentsScreenState extends State<CourseStudentsScreen> {
   final FirestoreService _service = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  Timer? _searchDebounce;
+  bool _isSearchPending = false;
+  Future<List<Map<String, dynamic>>>? _studentsFuture;
+  List<String> _enrollmentIds = const [];
 
   Future<List<Map<String, dynamic>>> _loadStudents(
     List<QueryDocumentSnapshot> documents,
@@ -53,8 +59,35 @@ class _CourseStudentsScreenState extends State<CourseStudentsScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    setState(() => _isSearchPending = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() {
+        _searchQuery = value;
+        _isSearchPending = false;
+      });
+    });
+  }
+
+  void _updateStudentsFuture(List<QueryDocumentSnapshot> documents) {
+    final enrollmentIds = documents.map((document) => document.id).toList();
+    if (_studentsFuture != null &&
+        enrollmentIds.length == _enrollmentIds.length &&
+        enrollmentIds.asMap().entries.every(
+          (entry) => entry.value == _enrollmentIds[entry.key],
+        )) {
+      return;
+    }
+
+    _enrollmentIds = enrollmentIds;
+    _studentsFuture = _loadStudents(documents);
   }
 
   @override
@@ -92,8 +125,12 @@ class _CourseStudentsScreenState extends State<CourseStudentsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final documents =
+              snapshot.data?.docs ?? const <QueryDocumentSnapshot>[];
+          _updateStudentsFuture(documents);
+
           return FutureBuilder<List<Map<String, dynamic>>>(
-            future: _loadStudents(snapshot.data?.docs ?? const []),
+            future: _studentsFuture,
             builder: (context, studentsSnapshot) {
               if (studentsSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -131,11 +168,22 @@ class _CourseStudentsScreenState extends State<CourseStudentsScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
-                      decoration: const InputDecoration(
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
                         labelText: 'Search by name or matric number',
                         prefixIcon: Icon(Icons.search),
+                        suffixIcon: _isSearchPending
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : null,
                         border: OutlineInputBorder(),
                       ),
                     ),

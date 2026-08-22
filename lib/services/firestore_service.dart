@@ -339,6 +339,28 @@ class FirestoreService {
       );
     }
 
+    try {
+      final enrollments = await _firestore
+          .collection('course_enrollments')
+          .where('lecturerId', isEqualTo: user.uid)
+          .where('courseId', isEqualTo: courseId)
+          .get();
+
+      final notificationWrites = enrollments.docs.map((enrollment) {
+        final studentId = (enrollment.data()['studentId'] ?? '').toString();
+        return _createUserNotification(
+          recipientId: studentId,
+          title: 'New assignment published',
+          body: '${title.trim()} was published in ${courseName.trim()}.',
+          type: 'assignment_published',
+          data: {'assignmentId': ref.id, 'courseId': courseId},
+        );
+      });
+      await Future.wait(notificationWrites);
+    } catch (e) {
+      debugPrint('Assignment publication notifications failed: $e');
+    }
+
     return ref.id;
   }
 
@@ -471,10 +493,32 @@ class FirestoreService {
 
     if (existing.docs.isNotEmpty) {
       await existing.docs.first.reference.update(data);
+      try {
+        await _notifyLecturerOfSubmission(
+          assignmentId: assignmentId,
+          assignmentData: assignmentData,
+          assignmentTitle: assignmentTitle,
+          studentName: studentName,
+          submissionId: existing.docs.first.id,
+        );
+      } catch (e) {
+        debugPrint('Submission notification failed: $e');
+      }
       return existing.docs.first.id;
     }
 
     final ref = await _firestore.collection('submissions').add(data);
+    try {
+      await _notifyLecturerOfSubmission(
+        assignmentId: assignmentId,
+        assignmentData: assignmentData,
+        assignmentTitle: assignmentTitle,
+        studentName: studentName,
+        submissionId: ref.id,
+      );
+    } catch (e) {
+      debugPrint('Submission notification failed: $e');
+    }
     return ref.id;
   }
 
@@ -554,6 +598,69 @@ class FirestoreService {
   }
 
   // ========================= NOTIFICATIONS =========================
+
+  Stream<QuerySnapshot> getUserNotifications() {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream<QuerySnapshot>.empty();
+
+    return _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('notifications')
+        .snapshots();
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'read': true});
+  }
+
+  Future<void> _createUserNotification({
+    required String recipientId,
+    required String title,
+    required String body,
+    required String type,
+    required Map<String, dynamic> data,
+  }) async {
+    if (recipientId.isEmpty) return;
+
+    await _firestore
+        .collection('users')
+        .doc(recipientId)
+        .collection('notifications')
+        .add({
+          'title': title,
+          'body': body,
+          'type': type,
+          'senderId': _auth.currentUser?.uid,
+          'data': data,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<void> _notifyLecturerOfSubmission({
+    required String assignmentId,
+    required Map<String, dynamic> assignmentData,
+    required String assignmentTitle,
+    required String studentName,
+    required String submissionId,
+  }) async {
+    await _createUserNotification(
+      recipientId: assignmentData['lecturerId']?.toString() ?? '',
+      title: 'Assignment submitted',
+      body: '$studentName submitted $assignmentTitle.',
+      type: 'assignment_submitted',
+      data: {'assignmentId': assignmentId, 'submissionId': submissionId},
+    );
+  }
 
   Future<void> _safeScheduleReminder({
     required int notificationId,

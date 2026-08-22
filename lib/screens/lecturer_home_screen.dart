@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -32,11 +34,26 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
   String _searchQuery = '';
   String _statusFilter = 'All';
   String _sortOrder = 'Newest';
+  Timer? _searchDebounce;
+  bool _isSearchPending = false;
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    setState(() => _isSearchPending = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() {
+        _searchQuery = value;
+        _isSearchPending = false;
+      });
+    });
   }
 
   String _greeting() {
@@ -582,10 +599,20 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _searchController,
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: const InputDecoration(
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
                     labelText: 'Search assignments',
                     prefixIcon: Icon(Icons.search),
+                    suffixIcon: _isSearchPending
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
                     border: OutlineInputBorder(),
                   ),
                 ),

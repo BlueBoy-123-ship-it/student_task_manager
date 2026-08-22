@@ -33,6 +33,16 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isLecturer();
       allow create, update, delete: if isOwner(userId);
+
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create: if signedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && (request.resource.data.type == 'assignment_published'
+              || request.resource.data.type == 'assignment_submitted');
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
     }
 
     match /courses/{courseId} {
