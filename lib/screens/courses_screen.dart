@@ -22,6 +22,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
   String _searchQuery = '';
   Timer? _searchDebounce;
   bool _isSearchPending = false;
+  Stream<QuerySnapshot>? _coursesStream;
 
   @override
   void initState() {
@@ -189,9 +190,9 @@ class _CoursesScreenState extends State<CoursesScreen> {
         }
 
         final isLecturer = roleSnapshot.data == 'lecturer';
-        final coursesStream = isLecturer
-            ? _service.getLecturerCourses()
-            : _service.getAllCourses();
+        _coursesStream ??= isLecturer
+          ? _service.getLecturerCourses()
+          : _service.getAllCourses();
 
         return Scaffold(
           appBar: AppBar(
@@ -264,122 +265,124 @@ class _CoursesScreenState extends State<CoursesScreen> {
                   label: const Text('Create Course'),
                 )
               : null,
-          body: StreamBuilder<QuerySnapshot>(
-            stream: coursesStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Unable to load courses.\n\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final docs = snapshot.data?.docs ?? const [];
-              if (docs.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.school_outlined,
-                          size: 80,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          isLecturer
-                              ? 'No courses yet'
-                              : 'No courses available',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isLecturer
-                              ? 'Create your first course so students can enroll in it.'
-                              : 'Courses created by lecturers will appear here.',
-                          textAlign: TextAlign.center,
-                        ),
-                        if (isLecturer) ...[
-                          const SizedBox(height: 20),
-                          FilledButton.icon(
-                            onPressed: _openAddCourseScreen,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Create Course'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              if (isLecturer) {
-                final lecturerId = _service.currentUser?.uid;
-                final lecturerDocs = docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['lecturerId']?.toString() == lecturerId ||
-                      data['userId']?.toString() == lecturerId;
-                }).toList();
-
-                if (lecturerDocs.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(30),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.school_outlined,
-                            size: 80,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            'No courses yet',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Create your first course so students can enroll in it.',
+          body: Column(
+            children: [
+              _searchField(),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _coursesStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'Unable to load courses.\n\n${snapshot.error}',
                             textAlign: TextAlign.center,
                           ),
-                          const SizedBox(height: 20),
-                          FilledButton.icon(
-                            onPressed: _openAddCourseScreen,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Create Course'),
+                        ),
+                      );
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final docs = snapshot.data?.docs ?? const [];
+                    if (docs.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(30),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.school_outlined,
+                                size: 80,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                isLecturer
+                                    ? 'No courses yet'
+                                    : 'No courses available',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                isLecturer
+                                    ? 'Create your first course so students can enroll in it.'
+                                    : 'Courses created by lecturers will appear here.',
+                                textAlign: TextAlign.center,
+                              ),
+                              if (isLecturer) ...[
+                                const SizedBox(height: 20),
+                                FilledButton.icon(
+                                  onPressed: _openAddCourseScreen,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Create Course'),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
+                        ),
+                      );
+                    }
 
-                final filteredDocs = lecturerDocs.where((doc) {
-                  return _matchesSearch(doc.data() as Map<String, dynamic>);
-                }).toList();
+                    if (isLecturer) {
+                      final lecturerId = _service.currentUser?.uid;
+                      final lecturerDocs = docs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        return data['lecturerId']?.toString() == lecturerId ||
+                            data['userId']?.toString() == lecturerId;
+                      }).toList();
 
-                return Column(
-                  children: [
-                    _searchField(),
-                    Expanded(
-                      child: filteredDocs.isEmpty
+                      if (lecturerDocs.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(30),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.school_outlined,
+                                  size: 80,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(height: 18),
+                                const Text(
+                                  'No courses yet',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Create your first course so students can enroll in it.',
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 20),
+                                FilledButton.icon(
+                                  onPressed: _openAddCourseScreen,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Create Course'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final filteredDocs = lecturerDocs.where((doc) {
+                        return _matchesSearch(
+                          doc.data() as Map<String, dynamic>,
+                        );
+                      }).toList();
+
+                      return filteredDocs.isEmpty
                           ? const Center(
                               child: Text('No matching courses found.'),
                             )
@@ -445,43 +448,41 @@ class _CoursesScreenState extends State<CoursesScreen> {
                                   ),
                                 );
                               },
+                            );
+                    }
+
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: _service.getMyEnrollments(),
+                      builder: (context, enrollmentSnapshot) {
+                        if (enrollmentSnapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Unable to load enrollments.\n${enrollmentSnapshot.error}',
                             ),
-                    ),
-                  ],
-                );
-              }
+                          );
+                        }
+                        if (enrollmentSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-              return StreamBuilder<QuerySnapshot>(
-                stream: _service.getMyEnrollments(),
-                builder: (context, enrollmentSnapshot) {
-                  if (enrollmentSnapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Unable to load enrollments.\n${enrollmentSnapshot.error}',
-                      ),
-                    );
-                  }
-                  if (enrollmentSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                        final enrolledIds = <String>{
+                          for (final doc
+                              in enrollmentSnapshot.data?.docs ?? const [])
+                            (doc.data() as Map<String, dynamic>)['courseId']
+                                    ?.toString() ??
+                                doc.id.split('_').first,
+                        };
 
-                  final enrolledIds = <String>{
-                    for (final doc in enrollmentSnapshot.data?.docs ?? const [])
-                      (doc.data() as Map<String, dynamic>)['courseId']
-                              ?.toString() ??
-                          doc.id.split('_').first,
-                  };
+                        final filteredDocs = docs.where((doc) {
+                          return _matchesSearch(
+                            doc.data() as Map<String, dynamic>,
+                          );
+                        }).toList();
 
-                  final filteredDocs = docs.where((doc) {
-                    return _matchesSearch(doc.data() as Map<String, dynamic>);
-                  }).toList();
-
-                  return Column(
-                    children: [
-                      _searchField(),
-                      Expanded(
-                        child: filteredDocs.isEmpty
+                        return filteredDocs.isEmpty
                             ? const Center(
                                 child: Text('No matching courses found.'),
                               )
@@ -526,13 +527,13 @@ class _CoursesScreenState extends State<CoursesScreen> {
                                     ),
                                   );
                                 },
-                              ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
+                              );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },

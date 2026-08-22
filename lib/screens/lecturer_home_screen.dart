@@ -36,6 +36,8 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
   String _sortOrder = 'Newest';
   Timer? _searchDebounce;
   bool _isSearchPending = false;
+  late final Stream<QuerySnapshot> _assignmentsStream =
+      _service.getLecturerAssignments();
 
   @override
   void dispose() {
@@ -476,244 +478,267 @@ class _LecturerHomeScreenState extends State<LecturerHomeScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Create Assignment'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _service.getLecturerAssignments(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Unable to load assignments.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colors.error),
-                ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                labelText: 'Search assignments',
+                prefixIcon: Icon(Icons.search),
+                suffixIcon: _isSearchPending
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+                border: OutlineInputBorder(),
               ),
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final assignments = (snapshot.data?.docs ?? const [])
-              .map((doc) => doc as QueryDocumentSnapshot<Map<String, dynamic>>)
-              .toList();
-
-          assignments.sort((a, b) {
-            final ad = a.data()['createdAt'];
-            final bd = b.data()['createdAt'];
-
-            final at = ad is Timestamp ? ad.toDate() : DateTime(1970);
-            final bt = bd is Timestamp ? bd.toDate() : DateTime(1970);
-
-            return bt.compareTo(at);
-          });
-
-          final active = assignments.where((doc) {
-            return doc.data()['status'] == 'active';
-          }).length;
-
-          final visibleAssignments = assignments.where((doc) {
-            final data = doc.data();
-            final status = data['status']?.toString() == 'completed'
-                ? 'completed'
-                : 'active';
-            final query = _searchQuery.trim().toLowerCase();
-            final title = data['title']?.toString().toLowerCase() ?? '';
-            final course = data['courseName']?.toString().toLowerCase() ?? '';
-            return (_statusFilter == 'All' || status == _statusFilter) &&
-                (query.isEmpty ||
-                    title.contains(query) ||
-                    course.contains(query));
-          }).toList();
-
-          visibleAssignments.sort((a, b) {
-            final aData = a.data();
-            final bData = b.data();
-            if (_sortOrder == 'Title') {
-              return (aData['title']?.toString() ?? '').toLowerCase().compareTo(
-                (bData['title']?.toString() ?? '').toLowerCase(),
-              );
-            }
-            final aValue = _sortOrder == 'Due date'
-                ? aData['dueDate']
-                : aData['createdAt'];
-            final bValue = _sortOrder == 'Due date'
-                ? bData['dueDate']
-                : bData['createdAt'];
-            final aDate = aValue is Timestamp
-                ? aValue.toDate()
-                : DateTime(1970);
-            final bDate = bValue is Timestamp
-                ? bValue.toDate()
-                : DateTime(1970);
-            return _sortOrder == 'Due date'
-                ? aDate.compareTo(bDate)
-                : bDate.compareTo(aDate);
-          });
-
-          return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 110),
-              children: [
-                Text(
-                  '${_greeting()}, ${_lecturerName()}!',
-                  style: const TextStyle(
-                    fontSize: 27,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Create assignments, view submissions, grade students and return results.',
-                  style: TextStyle(color: colors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    _stat(
-                      context,
-                      'Assignments',
-                      '${assignments.length}',
-                      Icons.assignment_outlined,
-                      Colors.blue,
-                    ),
-                    const SizedBox(width: 10),
-                    _stat(
-                      context,
-                      'Active',
-                      '$active',
-                      Icons.check_circle_outline,
-                      Colors.green,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                const Text(
-                  'My Assignments',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    labelText: 'Search assignments',
-                    prefixIcon: Icon(Icons.search),
-                    suffixIcon: _isSearchPending
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : null,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _statusFilter,
-                        decoration: const InputDecoration(
-                          labelText: 'Status',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(
-                            value: 'active',
-                            child: Text('Active'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'completed',
-                            child: Text('Completed'),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _statusFilter = value ?? 'All'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _sortOrder,
-                        decoration: const InputDecoration(
-                          labelText: 'Sort by',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Newest',
-                            child: Text('Newest'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Due date',
-                            child: Text('Due date'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Title',
-                            child: Text('Title'),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _sortOrder = value ?? 'Newest'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (visibleAssignments.isEmpty)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(30),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.assignment_outlined,
-                            size: 60,
-                            color: colors.primary,
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'No matching assignments',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            assignments.isEmpty
-                                ? 'Tap "Create Assignment" below to publish your first assignment.'
-                                : 'Try changing the search or status filter.',
-                            textAlign: TextAlign.center,
-                          ),
-                          if (assignments.isEmpty) ...[
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: _createAssignment,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Assignment'),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                for (final doc in visibleAssignments)
-                  _assignmentCard(context, doc),
-              ],
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _assignmentsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Unable to load assignments.\n\n${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.error),
+                      ),
+                    ),
+                  );
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final assignments = (snapshot.data?.docs ?? const [])
+                    .map(
+                      (doc) =>
+                          doc as QueryDocumentSnapshot<Map<String, dynamic>>,
+                    )
+                    .toList();
+
+                assignments.sort((a, b) {
+                  final ad = a.data()['createdAt'];
+                  final bd = b.data()['createdAt'];
+
+                  final at = ad is Timestamp ? ad.toDate() : DateTime(1970);
+                  final bt = bd is Timestamp ? bd.toDate() : DateTime(1970);
+
+                  return bt.compareTo(at);
+                });
+
+                final active = assignments.where((doc) {
+                  return doc.data()['status'] == 'active';
+                }).length;
+
+                final visibleAssignments = assignments.where((doc) {
+                  final data = doc.data();
+                  final status = data['status']?.toString() == 'completed'
+                      ? 'completed'
+                      : 'active';
+                  final query = _searchQuery.trim().toLowerCase();
+                  final title = data['title']?.toString().toLowerCase() ?? '';
+                  final course =
+                      data['courseName']?.toString().toLowerCase() ?? '';
+                  return (_statusFilter == 'All' || status == _statusFilter) &&
+                      (query.isEmpty ||
+                          title.contains(query) ||
+                          course.contains(query));
+                }).toList();
+
+                visibleAssignments.sort((a, b) {
+                  final aData = a.data();
+                  final bData = b.data();
+                  if (_sortOrder == 'Title') {
+                    return (aData['title']?.toString() ?? '')
+                        .toLowerCase()
+                        .compareTo(
+                          (bData['title']?.toString() ?? '').toLowerCase(),
+                        );
+                  }
+                  final aValue = _sortOrder == 'Due date'
+                      ? aData['dueDate']
+                      : aData['createdAt'];
+                  final bValue = _sortOrder == 'Due date'
+                      ? bData['dueDate']
+                      : bData['createdAt'];
+                  final aDate = aValue is Timestamp
+                      ? aValue.toDate()
+                      : DateTime(1970);
+                  final bDate = bValue is Timestamp
+                      ? bValue.toDate()
+                      : DateTime(1970);
+                  return _sortOrder == 'Due date'
+                      ? aDate.compareTo(bDate)
+                      : bDate.compareTo(aDate);
+                });
+
+                return RefreshIndicator(
+                  onRefresh: () async => setState(() {}),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 110),
+                    children: [
+                      Text(
+                        '${_greeting()}, ${_lecturerName()}!',
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Create assignments, view submissions, grade students and return results.',
+                        style: TextStyle(color: colors.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          _stat(
+                            context,
+                            'Assignments',
+                            '${assignments.length}',
+                            Icons.assignment_outlined,
+                            Colors.blue,
+                          ),
+                          const SizedBox(width: 10),
+                          _stat(
+                            context,
+                            'Active',
+                            '$active',
+                            Icons.check_circle_outline,
+                            Colors.green,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'My Assignments',
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _statusFilter,
+                              decoration: const InputDecoration(
+                                labelText: 'Status',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'All',
+                                  child: Text('All'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'active',
+                                  child: Text('Active'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'completed',
+                                  child: Text('Completed'),
+                                ),
+                              ],
+                              onChanged: (value) => setState(
+                                () => _statusFilter = value ?? 'All',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _sortOrder,
+                              decoration: const InputDecoration(
+                                labelText: 'Sort by',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Newest',
+                                  child: Text('Newest'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Due date',
+                                  child: Text('Due date'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Title',
+                                  child: Text('Title'),
+                                ),
+                              ],
+                              onChanged: (value) => setState(
+                                () => _sortOrder = value ?? 'Newest',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (visibleAssignments.isEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(30),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.assignment_outlined,
+                                  size: 60,
+                                  color: colors.primary,
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'No matching assignments',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  assignments.isEmpty
+                                      ? 'Tap "Create Assignment" below to publish your first assignment.'
+                                      : 'Try changing the search or status filter.',
+                                  textAlign: TextAlign.center,
+                                ),
+                                if (assignments.isEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    onPressed: _createAssignment,
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Create Assignment'),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      for (final doc in visibleAssignments)
+                        _assignmentCard(context, doc),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
