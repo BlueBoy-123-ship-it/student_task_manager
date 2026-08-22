@@ -132,7 +132,7 @@ class TaskTile extends StatelessWidget {
   // =========================================================
 
   bool get isOverdue {
-    if (completed || dueDate == null) {
+    if (completed || recurrenceWeeks > 0 || dueDate == null) {
       return false;
     }
 

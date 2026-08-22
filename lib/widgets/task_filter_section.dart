@@ -37,7 +37,10 @@ class _TaskFilterSectionState
   bool _isOverdue(
     Map<String, dynamic> data,
   ) {
-    if (data['completed'] == true) {
+    final recurrenceWeeks =
+        (data['recurrenceWeeks'] as num?)?.toInt() ?? 0;
+
+    if (data['completed'] == true || recurrenceWeeks > 0) {
       return false;
     }
 
