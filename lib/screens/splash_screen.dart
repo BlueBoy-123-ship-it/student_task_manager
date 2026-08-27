@@ -43,10 +43,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     try {
-      final profile = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      final profile = await _firestore.collection('users').doc(user.uid).get();
 
       final role = profile.data()?['role']?.toString().toLowerCase();
 
@@ -108,44 +105,32 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF210B3A),
-              Color(0xFF4B1378),
-              Color(0xFF8516C7),
-            ],
+            colors: [Color(0xFF0F3B8F), Color(0xFF2563EB), Color(0xFF6D28D9)],
           ),
         ),
         child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Ergobug',
-              style: const TextStyle(
-                fontSize: 38,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Ergobug',
+                style: const TextStyle(
+                  fontSize: 38,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Organize • Remember • Achieve',
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.white70,
+              const SizedBox(height: 30),
+              SizedBox(
+                width: 30,
+                height: 30,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: 30,
-              height: 30,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
