@@ -1,6 +1,6 @@
-import 'package:student_task_manager/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 class SettingsScreen extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
@@ -12,12 +12,10 @@ class SettingsScreen extends StatefulWidget {
   });
 
   @override
-  State<SettingsScreen> createState() =>
-      _SettingsScreenState();
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState
-    extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> {
   late ThemeMode _selectedTheme;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   @override
@@ -64,19 +62,16 @@ class _SettingsScreenState
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final user = _auth.currentUser;
-    final String displayName =
-        user?.displayName?.trim().isNotEmpty == true
-            ? user!.displayName!.trim()
-            : 'User';
+    final String displayName = user?.displayName?.trim().isNotEmpty == true
+        ? user!.displayName!.trim()
+        : 'User';
     final String email = user?.email ?? 'No email available';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Settings',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
 
@@ -87,7 +82,6 @@ class _SettingsScreenState
           // =================================================
           // ACCOUNT
           // =================================================
-
           Text(
             'Account',
             style: TextStyle(
@@ -97,41 +91,35 @@ class _SettingsScreenState
             ),
           ),
 
-const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-Card(
-  child: ListTile(
-    leading: CircleAvatar(
-      backgroundColor: colorScheme.primary,
-      child: Text(
-        displayName.isNotEmpty
-            ? displayName[0].toUpperCase()
-            : 'U',
-        style: TextStyle(
-          color: colorScheme.onPrimary,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
+          Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: colorScheme.primary,
+                child: Text(
+                  displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+                  style: TextStyle(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
 
-    title: Text(
-      displayName,
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-      ),
-    ),
+              title: Text(
+                displayName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
 
-    subtitle: Text(
-      email,
-    ),
-  ),
-),
+              subtitle: Text(email),
+            ),
+          ),
 
-const SizedBox(height: 30),
+          const SizedBox(height: 30),
+
           // =================================================
           // APPEARANCE
           // =================================================
-
           Text(
             'Appearance',
             style: TextStyle(
@@ -145,9 +133,7 @@ const SizedBox(height: 30),
 
           Text(
             'Choose how Ergobug should look.',
-            style: TextStyle(
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
 
           const SizedBox(height: 14),
@@ -155,114 +141,80 @@ const SizedBox(height: 30),
           // =================================================
           // THEME OPTIONS
           // =================================================
-
           Card(
-  child: RadioGroup<ThemeMode>(
-    groupValue: _selectedTheme,
+            child: RadioGroup<ThemeMode>(
+              groupValue: _selectedTheme,
 
-    onChanged: (value) {
-      if (value != null) {
-        _changeTheme(value);
-      }
-    },
+              onChanged: (value) {
+                if (value != null) {
+                  _changeTheme(value);
+                }
+              },
 
-    child: Column(
-      children: [
-        // =================================================
-        // LIGHT
-        // =================================================
+              child: Column(
+                children: [
+                  // =================================================
+                  // LIGHT
+                  // =================================================
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.light,
 
-        RadioListTile<ThemeMode>(
-          value: ThemeMode.light,
+                    title: const Text('Light'),
 
-          title: const Text(
-            'Light',
+                    subtitle: const Text('Always use light mode'),
+
+                    secondary: const Icon(Icons.light_mode_outlined),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // =================================================
+                  // DARK
+                  // =================================================
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.dark,
+
+                    title: const Text('Dark'),
+
+                    subtitle: const Text('Always use dark mode'),
+
+                    secondary: const Icon(Icons.dark_mode_outlined),
+                  ),
+
+                  const Divider(height: 1),
+
+                  // =================================================
+                  // SYSTEM DEFAULT
+                  // =================================================
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.system,
+
+                    title: const Text('System Default'),
+
+                    subtitle: const Text('Follow your device settings'),
+
+                    secondary: const Icon(Icons.phone_android_outlined),
+                  ),
+                ],
+              ),
+            ),
           ),
-
-          subtitle: const Text(
-            'Always use light mode',
-          ),
-
-          secondary: const Icon(
-            Icons.light_mode_outlined,
-          ),
-        ),
-
-        const Divider(
-          height: 1,
-        ),
-
-        // =================================================
-        // DARK
-        // =================================================
-
-        RadioListTile<ThemeMode>(
-          value: ThemeMode.dark,
-
-          title: const Text(
-            'Dark',
-          ),
-
-          subtitle: const Text(
-            'Always use dark mode',
-          ),
-
-          secondary: const Icon(
-            Icons.dark_mode_outlined,
-          ),
-        ),
-
-        const Divider(
-          height: 1,
-        ),
-
-        // =================================================
-        // SYSTEM DEFAULT
-        // =================================================
-
-        RadioListTile<ThemeMode>(
-          value: ThemeMode.system,
-
-          title: const Text(
-            'System Default',
-          ),
-
-          subtitle: const Text(
-            'Follow your device settings',
-          ),
-
-          secondary: const Icon(
-            Icons.phone_android_outlined,
-          ),
-        ),
-      ],
-    ),
-  ),
-),
 
           const SizedBox(height: 20),
 
           // =================================================
           // CURRENT APPEARANCE
           // =================================================
-
           Card(
             child: ListTile(
-              leading: Icon(
-                Icons.palette_outlined,
-                color: colorScheme.primary,
-              ),
+              leading: Icon(Icons.palette_outlined, color: colorScheme.primary),
 
               title: const Text(
                 'Current appearance',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
-              subtitle: Text(
-                _themeName(),
-              ),
+              subtitle: Text(_themeName()),
             ),
           ),
 
@@ -271,7 +223,6 @@ const SizedBox(height: 30),
           // =================================================
           // ABOUT ERGOBUG
           // =================================================
-
           Text(
             'About Ergobug',
             style: TextStyle(
@@ -286,7 +237,6 @@ const SizedBox(height: 30),
           // =================================================
           // ERGOBUG
           // =================================================
-
           Card(
             child: ListTile(
               leading: Icon(
@@ -297,14 +247,10 @@ const SizedBox(height: 30),
 
               title: const Text(
                 'Ergobug',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
-              subtitle: const Text(
-                'Organize • Remember • Achieve',
-              ),
+              subtitle: const Text('Organize • Remember • Achieve'),
             ),
           ),
 
@@ -313,47 +259,15 @@ const SizedBox(height: 30),
           // =================================================
           // VERSION
           // =================================================
-
           Card(
             child: const ListTile(
-              leading: Icon(
-                Icons.info_outline,
-              ),
+              leading: Icon(Icons.info_outline),
 
-              title: Text(
-                'Version',
-              ),
+              title: Text('Version'),
 
-              subtitle: Text(
-                '1.0.0',
-              ),
+              subtitle: Text('1.0.0'),
             ),
           ),
-             // =================================================
-             // TEST NOTIFICATION
-             // =================================================
-
-const SizedBox(height: 20),
-
-ElevatedButton.icon(
-  onPressed: () async {
-    await NotificationService.instance.testNotification();
-
-    if (!mounted) return;
-
-    final tzName = NotificationService.instance.currentTimeZone;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Instant notification sent & 10s timer scheduled ($tzName).',
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
-  },
-  icon: const Icon(Icons.notifications_active_outlined),
-  label: const Text('Test Notification & Timezone'),
-),
         ],
       ),
     );
