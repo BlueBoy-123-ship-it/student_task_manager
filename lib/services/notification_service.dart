@@ -22,13 +22,17 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
-  static const String _taskChannelId = 'ergobug_task_reminders';
+  // Bumping channel IDs to v2 so Android applies the updated notification settings
+  static const String _taskChannelId = 'ergobug_task_reminders_v2';
   static const String _taskChannelName = 'Task Reminders';
   static const String _taskChannelDesc = 'Reminders for Ergobug tasks and assignments';
 
-  static const String _testChannelId = 'ergobug_test_notifications';
+  static const String _testChannelId = 'ergobug_test_notifications_v2';
   static const String _testChannelName = 'Test Notifications';
   static const String _testChannelDesc = 'Test notifications for Ergobug';
+
+  // Brand Accent Color
+  static const Color _brandColor = Color(0xFF2563EB);
 
   bool _initialized = false;
   String _currentTimeZone = 'UTC';
@@ -44,6 +48,7 @@ class NotificationService {
 
     await _configureLocalTimeZone();
 
+    // Default icon: '@mipmap/ic_launcher' (or 'ic_notification' once you add it to res/drawable)
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const darwinSettings = DarwinInitializationSettings(
@@ -64,7 +69,7 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
-    // Create high-importance Android notification channels explicitly
+    // Create Android notification channels explicitly
     if (Platform.isAndroid) {
       final androidPlugin = _notifications
           .resolvePlatformSpecificImplementation<
@@ -76,11 +81,11 @@ class NotificationService {
             _taskChannelId,
             _taskChannelName,
             description: _taskChannelDesc,
-            importance: Importance.max,
+            importance: Importance.high,
             playSound: true,
             enableVibration: true,
             enableLights: true,
-            ledColor: Color(0xFF2563EB),
+            ledColor: _brandColor,
             showBadge: true,
           ),
         );
@@ -90,11 +95,11 @@ class NotificationService {
             _testChannelId,
             _testChannelName,
             description: _testChannelDesc,
-            importance: Importance.max,
+            importance: Importance.high,
             playSound: true,
             enableVibration: true,
             enableLights: true,
-            ledColor: Color(0xFF2563EB),
+            ledColor: _brandColor,
             showBadge: true,
           ),
         );
@@ -183,7 +188,7 @@ class NotificationService {
   }
 
   // =========================================================
-  // SCHEDULE TASK REMINDER (Supports Killed App & Locked Phone)
+  // SCHEDULE TASK REMINDER
   // =========================================================
 
   Future<bool> scheduleTaskReminder({
@@ -219,18 +224,22 @@ class NotificationService {
       _taskChannelId,
       _taskChannelName,
       channelDescription: _taskChannelDesc,
-      importance: Importance.max,
-      priority: Priority.max,
+      importance: Importance.high,
+      priority: Priority.high,
       visibility: NotificationVisibility.public,
-      fullScreenIntent: true,
+      fullScreenIntent: false, // Prevents aggressive auto-launching
+      
+      // Icons and branding
+      color: _brandColor,
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      
       playSound: true,
       enableVibration: true,
       enableLights: true,
-      ledColor: Color(0xFF2563EB),
+      ledColor: _brandColor,
       ledOnMs: 1000,
       ledOffMs: 500,
       category: AndroidNotificationCategory.reminder,
-      audioAttributesUsage: AudioAttributesUsage.alarm,
       ticker: 'Task Reminder',
     );
 
@@ -247,7 +256,7 @@ class NotificationService {
       macOS: darwinDetails,
     );
 
-    // Tier 1: Try AlarmClock mode (Highest Android priority: wakes CPU from lock screen and killed app state)
+    // Tier 1: Exact Allow While Idle (Accurate delivery without launching the app)
     try {
       await _notifications.zonedSchedule(
         id: notificationId,
@@ -256,15 +265,15 @@ class NotificationService {
         scheduledDate: scheduledDate,
         notificationDetails: details,
         matchDateTimeComponents:
-          weekly ? DateTimeComponents.dayOfWeekAndTime : null,
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
+            weekly ? DateTimeComponents.dayOfWeekAndTime : null,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
 
-      debugPrint('AlarmClock reminder scheduled: ID $notificationId at $scheduledDate (tz: $_currentTimeZone)');
+      debugPrint('ExactAllowWhileIdle reminder scheduled: ID $notificationId at $scheduledDate (tz: $_currentTimeZone)');
       return true;
     } catch (e) {
-      debugPrint('AlarmClock scheduling failed ($e), falling back to exactAllowWhileIdle');
-      // Tier 2: Exact Allow While Idle
+      debugPrint('Exact alarm scheduling failed ($e), falling back to inexactAllowWhileIdle');
+      // Tier 2: Inexact Fallback
       try {
         await _notifications.zonedSchedule(
           id: notificationId,
@@ -272,38 +281,21 @@ class NotificationService {
           body: body ?? '$taskTitle is due soon.',
           scheduledDate: scheduledDate,
           notificationDetails: details,
-            matchDateTimeComponents:
+          matchDateTimeComponents:
               weekly ? DateTimeComponents.dayOfWeekAndTime : null,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
-        debugPrint('ExactAllowWhileIdle reminder scheduled: ID $notificationId at $scheduledDate');
+        debugPrint('Inexact fallback reminder scheduled: ID $notificationId at $scheduledDate');
         return true;
-      } catch (e2) {
-        debugPrint('Exact alarm scheduling failed ($e2), falling back to inexactAllowWhileIdle');
-        // Tier 3: Inexact Fallback
-        try {
-          await _notifications.zonedSchedule(
-            id: notificationId,
-            title: 'Task Reminder 🔔',
-            body: body ?? '$taskTitle is due soon.',
-            scheduledDate: scheduledDate,
-            notificationDetails: details,
-            matchDateTimeComponents:
-              weekly ? DateTimeComponents.dayOfWeekAndTime : null,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          );
-          debugPrint('Inexact fallback reminder scheduled: ID $notificationId at $scheduledDate');
-          return true;
-        } catch (fallbackError) {
-          debugPrint('All reminder scheduling failed: $fallbackError');
-          return false;
-        }
+      } catch (fallbackError) {
+        debugPrint('All reminder scheduling failed: $fallbackError');
+        return false;
       }
     }
   }
 
   // =========================================================
-  // TEST NOTIFICATION (Instant & 10s Alarm Clock Scheduled)
+  // TEST NOTIFICATION
   // =========================================================
 
   Future<void> testNotification() async {
@@ -315,14 +307,19 @@ class NotificationService {
       _testChannelId,
       _testChannelName,
       channelDescription: _testChannelDesc,
-      importance: Importance.max,
-      priority: Priority.max,
+      importance: Importance.high,
+      priority: Priority.high,
       visibility: NotificationVisibility.public,
-      fullScreenIntent: true,
+      fullScreenIntent: false,
+
+      // Icons and branding
+      color: _brandColor,
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+
       playSound: true,
       enableVibration: true,
       enableLights: true,
-      ledColor: Color(0xFF2563EB),
+      ledColor: _brandColor,
     );
 
     const details = NotificationDetails(
@@ -342,7 +339,7 @@ class NotificationService {
       notificationDetails: details,
     );
 
-    // 2. Schedule test notification for 10 seconds from now (Alarm Clock mode)
+    // 2. Schedule test notification for 10 seconds from now
     final testScheduledDate = tz.TZDateTime.now(tz.local).add(
       const Duration(seconds: 10),
     );
@@ -351,33 +348,22 @@ class NotificationService {
       await _notifications.zonedSchedule(
         id: 999999,
         title: 'Ergobug 10s Timer Test ⏱️',
-        body: 'Your scheduled reminder fired accurately even with app closed!',
+        body: 'Your scheduled reminder fired accurately!',
         scheduledDate: testScheduledDate,
         notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
 
-      debugPrint('Test reminder scheduled for: $testScheduledDate (alarmClock mode)');
+      debugPrint('Test reminder scheduled for: $testScheduledDate');
     } catch (e) {
-      try {
-        await _notifications.zonedSchedule(
-          id: 999999,
-          title: 'Ergobug 10s Timer Test ⏱️',
-          body: 'Your scheduled reminder fired accurately!',
-          scheduledDate: testScheduledDate,
-          notificationDetails: details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        );
-      } catch (_) {
-        await _notifications.zonedSchedule(
-          id: 999999,
-          title: 'Ergobug Test ⏱️',
-          body: 'Test reminder fired successfully!',
-          scheduledDate: testScheduledDate,
-          notificationDetails: details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        );
-      }
+      await _notifications.zonedSchedule(
+        id: 999999,
+        title: 'Ergobug Test ⏱️',
+        body: 'Test reminder fired successfully!',
+        scheduledDate: testScheduledDate,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
     }
   }
 
