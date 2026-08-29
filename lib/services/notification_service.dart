@@ -48,7 +48,8 @@ class NotificationService {
 
     await _configureLocalTimeZone();
 
-    const androidSettings = AndroidInitializationSettings('ic_notification');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/launcher_icon');
 
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -229,9 +230,9 @@ class NotificationService {
       fullScreenIntent: false, // Prevents aggressive auto-launching
 
       // Icons and branding
-      icon: 'ic_notification',
+      icon: '@mipmap/launcher_icon',
       color: _brandColor,
-      largeIcon: DrawableResourceAndroidBitmap('ic_notification'),
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/launcher_icon'),
 
       playSound: true,
       enableVibration: true,
@@ -313,9 +314,9 @@ class NotificationService {
       fullScreenIntent: false,
 
       // Icons and branding
-      icon: 'ic_notification',
+      icon: '@mipmap/launcher_icon',
       color: _brandColor,
-      largeIcon: DrawableResourceAndroidBitmap('ic_notification'),
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/launcher_icon'),
 
       playSound: true,
       enableVibration: true,

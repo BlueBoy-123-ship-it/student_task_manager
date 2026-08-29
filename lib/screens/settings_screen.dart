@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/notification_service.dart';
+
 class SettingsScreen extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
@@ -215,6 +217,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               subtitle: Text(_themeName()),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // =================================================
+          // NOTIFICATIONS
+          // =================================================
+          Text(
+            'Notifications',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'Manage and verify task reminder delivery.',
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+          ),
+
+          const SizedBox(height: 14),
+
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.notifications_active_outlined,
+                    color: colorScheme.primary,
+                  ),
+                  title: const Text(
+                    'Test Notification',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text(
+                    'Fires an instant test and schedules a 10s reminder',
+                  ),
+                  trailing: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () async {
+                      try {
+                        await NotificationService.instance.testNotification();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Test sent! Check notification tray & wait 10s for scheduled alert.',
+                              ),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to send notification: $e'),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.send, size: 16),
+                    label: const Text('Test'),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    Icons.security_outlined,
+                    color: colorScheme.primary,
+                  ),
+                  title: const Text('Notification Permissions'),
+                  subtitle: const Text(
+                    'Ensure alarms and post permissions are enabled',
+                  ),
+                  trailing: OutlinedButton(
+                    onPressed: () async {
+                      final granted = await NotificationService.instance
+                          .requestPermission();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              granted
+                                  ? 'Notifications are allowed!'
+                                  : 'Permissions requested / checked.',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Check'),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    Icons.access_time_outlined,
+                    color: colorScheme.primary,
+                  ),
+                  title: const Text('Detected Timezone'),
+                  subtitle: Text(
+                    NotificationService.instance.currentTimeZone,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
           ),
 
