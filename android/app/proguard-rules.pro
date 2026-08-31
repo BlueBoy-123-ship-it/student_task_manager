@@ -8,12 +8,16 @@
 -dontwarn com.dexterous.flutterlocalnotifications.**
 
 # Flutter Framework & Plugins
--keep class io.flutter.app.** { *; }
+# Do NOT keep all io.flutter.app classes because this can cause
+# R8 to retain unused deferred-component classes.
+
 -keep class io.flutter.plugin.** { *; }
 -keep class io.flutter.util.** { *; }
 -keep class io.flutter.view.** { *; }
--keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
 # Desugaring
 -dontwarn java.time.**
+
+# Flutter deferred components are not used by Ergobug.
+-dontwarn com.google.android.play.core.**
